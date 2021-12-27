@@ -1,0 +1,242 @@
+Synopsis
+This project contains the implementation details of the login and authentication of the proposed scheme in "Privacy-Preserving Authentication Scheme with Revocability for Multi-WSN in Industrial IoT".
+
+Environmental requirements
+Programs can run under Windows, Linux, and Macs. 
+Install Proverif 1.96, download Address: http://proverif.inria.fr/
+No additional libraries are required. 
+ProVerif is a command-line tool which can be executed using the syntax:
+           ./proverif [options] filename
+
+Code example of login，"IESJ-login.pv" is the filename
+
+./proverif.exe IESJ-login.pv
+Linear part:
+Completing equations...
+Completed equations:
+Convergent part:
+XOR(XOR(x_13,y_14),y_14) = x_13
+Completing equations...
+Completed equations:
+XOR(XOR(x_13,y_14),y_14) = x_13
+Process:
+{1}new PKR: ECCpoint;
+{2}let LKur: bitstring = H3(ID,Rs,Ru) in
+{3}let F: bitstring = XOR(LKur,H3(ID,PW,b)) in
+{4}let V: bitstring = H1(H2(LKur,H3(ID,PW,b))) in
+{5}let PKR_57: ECCpoint = ECCmul(skR,P) in
+{6}out(c, PKR_57);
+(
+    {7}!
+    {8}let uLKi: bitstring = XOR(F,H3(ID,PW,b)) in
+    {9}if (uLKi = LKur) then
+    {10}let LV': bitstring = H1(H2(uLKi,H3(ID,PW,b))) in
+    {11}if (LV' = V) then
+    {12}event beginRparam(RC);
+    {13}new rx: nonce;
+    {14}new T_58: timestamp;
+    {15}let x_59: skey = H2(rx,uLKi) in
+    {16}let X: ECCpoint = ECCmul(x_59,P) in
+    {17}let Mij: ECCpoint = ECCmul(x_59,PKR_57) in
+    {18}let CT1: bitstring = XOR(ID,H1(Mij)) in
+    {19}let V1: bitstring = H5(ID,X,uLKi,Mij,T_58) in
+    {20}out(c, (CT1,X,V1,T_58,isFresh(T_58,true)));
+    {21}in(c, (gY: ECCpoint,gCT2: bitstring,gV2: bitstring));
+    {22}let (gKui: bitstring,gTPui: bitstring,gLt: bitstring) = XOR(gCT2,H3(uLKi,Mij,ECCmul(x_59,gY))) in
+    {23}let V'2: bitstring = H8(ID,gKui,gTPui,gLt,X,gY,uLKi,Mij) in
+    {24}if (V'2 = gV2) then
+    {25}event endUparam(user);
+    {26}out(c, encrypt(secretA,Mij));
+    {27}out(c, encrypt(secretB,ECCmul(x_59,gY)))
+) | (
+    {28}!
+    {29}in(c, (gCT1: bitstring,gX: ECCpoint,gV1: bitstring,gT: timestamp,checkT: bool));
+    {30}event beginUparam(user);
+    {31}if (checkT = true) then
+    {32}let M'ij: ECCpoint = ECCmul(skR,gX) in
+    {33}let gIDi: bitstring = XOR(gCT1,H1(M'ij)) in
+    {34}let rLKi: bitstring = H3(gIDi,Rs,Ru) in
+    {35}let V'1: bitstring = H5(gIDi,gX,rLKi,M'ij,gT) in
+    {36}if (V'1 = gV1) then
+    {37}new ry: nonce;
+    {38}new TPui: bitstring;
+    {39}new Kui: bitstring;
+    {40}new Lt: bitstring;
+    {41}let y_60: skey = H2(ry,skR) in
+    {42}let Y: ECCpoint = ECCmul(y_60,P) in
+    {43}let CT2: bitstring = XOR(Concat(Concat(Kui,TPui),Lt),H3(rLKi,M'ij,ECCmul(y_60,gX))) in
+    {44}let V2: bitstring = H8(gIDi,Kui,TPui,Lt,gX,Y,rLKi,M'ij) in
+    {45}out(c, (Y,CT2,V2));
+    {46}event endRparam(RC);
+    {47}out(c, encrypt(secretC,M'ij));
+    {48}out(c, encrypt(secretD,ECCmul(y_60,gX)))
+)
+
+-- Query not attacker(secretA[]); not attacker(secretB[]); not attacker(secretC[]); not attacker(secretD[])
+Completing...
+ok, secrecy assumption verified: fact unreachable attacker(Rs[])
+ok, secrecy assumption verified: fact unreachable attacker(Ru[])
+ok, secrecy assumption verified: fact unreachable attacker(skR[])
+Starting query not attacker(secretA[])
+RESULT not attacker(secretA[]) is true.
+Starting query not attacker(secretB[])
+RESULT not attacker(secretB[]) is true.
+Starting query not attacker(secretC[])
+RESULT not attacker(secretC[]) is true.
+Starting query not attacker(secretD[])
+RESULT not attacker(secretD[]) is true.
+-- Query inj-event(endUparam(x_1787)) ==> inj-event(beginUparam(x_1787))
+Completing...
+ok, secrecy assumption verified: fact unreachable attacker(Rs[])
+ok, secrecy assumption verified: fact unreachable attacker(Ru[])
+ok, secrecy assumption verified: fact unreachable attacker(skR[])
+Starting query inj-event(endUparam(x_1787)) ==> inj-event(beginUparam(x_1787))
+RESULT inj-event(endUparam(x_1787)) ==> inj-event(beginUparam(x_1787)) is true.
+-- Query inj-event(endRparam(x_3586)) ==> inj-event(beginRparam(x_3586))
+Completing...
+ok, secrecy assumption verified: fact unreachable attacker(Rs[])
+ok, secrecy assumption verified: fact unreachable attacker(Ru[])
+ok, secrecy assumption verified: fact unreachable attacker(skR[])
+Starting query inj-event(endRparam(x_3586)) ==> inj-event(beginRparam(x_3586))
+RESULT inj-event(endRparam(x_3586)) ==> inj-event(beginRparam(x_3586)) is true.
+
+
+*****************************************************************************************
+Code example of authentication，"IESJ-auth.pv" is the filename
+
+./proverif.exe IESJ-auth.pv
+
+
+Linear part:
+Completing equations...
+Completed equations:
+Convergent part:
+XOR(XOR(x_13,y_14),y_14) = x_13
+Completing equations...
+Completed equations:
+XOR(XOR(x_13,y_14),y_14) = x_13
+Process:
+{1}new Lt: bitstring;
+{2}new rui: skey;
+{3}new rGj: skey;
+{4}let PKR: ECCpoint = ECCmul(skR,P) in
+{5}out(c1, PKR);
+{6}let TPU: ECCpoint = ECCmul(rui,P) in
+{7}let HIDi: bitstring = H3(IDU,TPU,Lt) in
+{8}let SKU: skey = Mod(Add(rui,Mul(skR,HIDi)),qVaule) in
+{9}let TPG: ECCpoint = ECCmul(rGj,P) in
+{10}let HIDG: bitstring = H2(IDG,TPG) in
+{11}let SKG: skey = Mod(Add(rGj,Mul(skR,HIDG)),qVaule) in
+(
+    {12}!
+    {13}in(c1, PK: ECCpoint);
+    {14}event beginGUparam(GWN);
+    {15}new rx: nonce;
+    {16}let ux: skey = H2(rx,SKU) in
+    {17}let UX: ECCpoint = ECCmul(ux,P) in
+    {18}let HIDGj: bitstring = H2(IDG,TPG) in
+    {19}let R1: ECCpoint = ECCmul(ux,ECCadd(TPG,ECCmul(HIDGj,PK))) in
+    {20}let hi: bitstring = H5(IDU,IDS,IDG,R1,UX) in
+    {21}let thita: skey = Mod(Add(SKU,Mul(ux,hi)),qVaule) in
+    {22}let CM: bitstring = XOR(Concat(Concat(Concat(Concat(Lt,IDU),IDS),TPU),thita),H3(IDG,R1,UX)) in
+    {23}new T_57: timestamp;
+    {24}let UV1: bitstring = H9(IDU,IDS,IDG,TPU,thita,Lt,R1,UX,T_57) in
+    {25}out(c1, (UX,CM,UV1,T_57,isFresh(T_57,true)));
+    {26}in(c1, (gUY: ECCpoint,gGV4: bitstring));
+    {27}let ke': bitstring = H7(IDU,IDS,IDG,R1,gUY,UX,ECCmul(ux,gUY)) in
+    {28}let GV'4: bitstring = H4(IDU,IDS,gUY,ke') in
+    {29}if (GV'4 = gGV4) then
+    {30}event endUGparam(user);
+    {31}out(c1, encrypt(secretA,ke'))
+) | (
+    {32}!
+    {33}in(c1, (gUX: ECCpoint,gCM: bitstring,gUV1: bitstring,gT: timestamp,checkT: bool));
+    {34}in(c1, PK_58: ECCpoint);
+    {35}event beginUGparam(user);
+    {36}if (checkT = true) then
+    {37}let R'1: ECCpoint = ECCmul(SKG,gUX) in
+    {38}let (gLT: bitstring,gIDi: bitstring,gIDSk: bitstring,gTPui: bitstring,gthita: bitstring) = XOR(gCM,H3(IDG,R'1,gUX)) in
+    {39}let HID'i: bitstring = H3(gIDi,gTPui,gLT) in
+    {40}let h'i: bitstring = H5(gIDi,gIDSk,IDG,R'1,gUX) in
+    {41}let UV'1: bitstring = H9(gIDi,gIDSk,IDG,gTPui,gthita,gLT,R'1,gUX,gT) in
+    {42}let leftP: ECCpoint = ECCmul(gthita,P) in
+    {43}let rightP: ECCpoint = ECCadd(ECCadd(ECCmul(h'i,gUX),gTPui),ECCmul(HID'i,PK_58)) in
+    {44}if ((UV'1 = gUV1) && (leftP = rightP)) then
+    {45}new ry: nonce;
+    {46}let uy: skey = H2(ry,SKG) in
+    {47}let UY: ECCpoint = ECCmul(uy,P) in
+    {48}let ke: bitstring = H7(gIDi,gIDSk,IDG,R'1,UY,gUX,ECCmul(uy,gUX)) in
+    {49}event beginSGparam(SN);
+    {50}let CT: bitstring = XOR(Concat(ke,gIDi),H2(KGS,NSk)) in
+    {51}let GV2: bitstring = H5(gIDi,gIDSk,ke,KGS,NSk) in
+    {52}out(c2, (NSk,CT,GV2));
+    {53}in(c2, gSV3: bitstring);
+    {54}let SV'3: bitstring = H3(gIDSk,ke,NSk) in
+    {55}if (SV'3 = gSV3) then
+    {56}let GV4: bitstring = H4(gIDi,gIDSk,UY,ke) in
+    {57}event endGSparam(GWN);
+    {58}out(c2, encrypt(secretC,KGS));
+    {59}out(c1, (UY,GV4));
+    {60}event endGUparam(GWN);
+    {61}out(c1, encrypt(secretB,ke))
+) | (
+    {62}!
+    {63}in(c2, (gNSk: bitstring,gCT: bitstring,gGV2: bitstring));
+    {64}event beginGSparam(GWN);
+    {65}if (gNSk = NSk) then
+    {66}let (gke: bitstring,gIDi_59: bitstring) = XOR(gCT,H2(KGS,gNSk)) in
+    {67}let GV'2: bitstring = H5(gIDi_59,IDS,gke,KGS,gNSk) in
+    {68}if (GV'2 = gGV2) then
+    {69}let SV3: bitstring = H3(IDS,gke,gNSk) in
+    {70}out(c2, SV3);
+    {71}event endSGparam(SN);
+    {72}out(c2, encrypt(secretD,gke))
+)
+
+-- Query not attacker(secretA[]); not attacker(secretB[]); not attacker(secretC[]); not attacker(secretD[])
+Completing...
+ok, secrecy assumption verified: fact unreachable attacker(Kui[])
+ok, secrecy assumption verified: fact unreachable attacker(KUgj[])
+ok, secrecy assumption verified: fact unreachable attacker(KGS[])
+ok, secrecy assumption verified: fact unreachable attacker(skR[])
+Starting query not attacker(secretA[])
+RESULT not attacker(secretA[]) is true.
+Starting query not attacker(secretB[])
+RESULT not attacker(secretB[]) is true.
+Starting query not attacker(secretC[])
+RESULT not attacker(secretC[]) is true.
+Starting query not attacker(secretD[])
+RESULT not attacker(secretD[]) is true.
+-- Query inj-event(endSGparam(x_1728)) ==> inj-event(beginSGparam(x_1728))
+Completing...
+ok, secrecy assumption verified: fact unreachable attacker(Kui[])
+ok, secrecy assumption verified: fact unreachable attacker(KUgj[])
+ok, secrecy assumption verified: fact unreachable attacker(KGS[])
+ok, secrecy assumption verified: fact unreachable attacker(skR[])
+Starting query inj-event(endSGparam(x_1728)) ==> inj-event(beginSGparam(x_1728))
+RESULT inj-event(endSGparam(x_1728)) ==> inj-event(beginSGparam(x_1728)) is true.
+-- Query inj-event(endGSparam(x_3332)) ==> inj-event(beginGSparam(x_3332))
+Completing...
+ok, secrecy assumption verified: fact unreachable attacker(Kui[])
+ok, secrecy assumption verified: fact unreachable attacker(KUgj[])
+ok, secrecy assumption verified: fact unreachable attacker(KGS[])
+ok, secrecy assumption verified: fact unreachable attacker(skR[])
+Starting query inj-event(endGSparam(x_3332)) ==> inj-event(beginGSparam(x_3332))
+RESULT inj-event(endGSparam(x_3332)) ==> inj-event(beginGSparam(x_3332)) is true.
+-- Query inj-event(endGUparam(x_4944)) ==> inj-event(beginGUparam(x_4944))
+Completing...
+ok, secrecy assumption verified: fact unreachable attacker(Kui[])
+ok, secrecy assumption verified: fact unreachable attacker(KUgj[])
+ok, secrecy assumption verified: fact unreachable attacker(KGS[])
+ok, secrecy assumption verified: fact unreachable attacker(skR[])
+Starting query inj-event(endGUparam(x_4944)) ==> inj-event(beginGUparam(x_4944))
+RESULT inj-event(endGUparam(x_4944)) ==> inj-event(beginGUparam(x_4944)) is true.
+-- Query inj-event(endUGparam(x_6614)) ==> inj-event(beginUGparam(x_6614))
+Completing...
+ok, secrecy assumption verified: fact unreachable attacker(Kui[])
+ok, secrecy assumption verified: fact unreachable attacker(KUgj[])
+ok, secrecy assumption verified: fact unreachable attacker(KGS[])
+ok, secrecy assumption verified: fact unreachable attacker(skR[])
+Starting query inj-event(endUGparam(x_6614)) ==> inj-event(beginUGparam(x_6614))
+RESULT inj-event(endUGparam(x_6614)) ==> inj-event(beginUGparam(x_6614)) is true.
+
