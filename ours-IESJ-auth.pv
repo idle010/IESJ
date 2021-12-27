@@ -1,0 +1,215 @@
+(*--
+The Proverif code of the authentication phase of the proposed scheme in "Privacy-Preserving Authentication Scheme with Revocability for Multi-WSN in Industrial IoT".
+
+Environmental requirements
+Programs can run under Windows, Linux, and Macs. 
+Install Proverif 1.96, download Address: http://proverif.inria.fr/
+No additional libraries are required. 
+ProVerif is a command-line tool which can be executed using the syntax:
+           ./proverif [options] hfilenamei
+
+Programs can also run online for ProVerif.
+Address: http://proverif16.paris.inria.fr/index.php
+Copy your code to the input box and press the execution key to verify the scheme.
+--*)
+
+(*--The two public channel--*)
+free c1: channel.
+free c2: channel.
+
+(*--The basic type--*)
+type key.
+type skey.
+type host.
+type nonce.
+type timestamp.
+type ECCpoint.
+
+(*--The basic variables--*)
+const qVaule: skey.
+const P:ECCpoint [data].  (*--a generator of the additive group of point--*)
+free user,GWN,SN: host. (*---three participants in our scheme--*)
+free IDU: bitstring[private]. (*--the identity of the user--*)
+free IDG: bitstring. (*--the identity of the GWNj--*)
+free IDS: bitstring. (*--the identity of the sensor node--*)
+free Kui: skey[private]. (*---the privater key of the user--*)
+free KUgj: skey[private]. (*---the privater key of the GWNj--*)
+free NSk:bitstring. (*---the serial number between GWN and sensor node--*)
+free KGS: bitstring[private]. (*--the shared one-time hash_chain between GWNj and the sensor node--*)
+free skR:skey[private]. (*--the private key of RC--*)
+
+(*--Shared key encryption--*)
+fun encrypt(bitstring,key): bitstring.
+reduc forall x: bitstring, y: key; decrypt(encrypt(x,y),y) = x.
+
+(*--Hash operation--*) 
+fun H2(bitstring,bitstring): bitstring.
+fun H3(bitstring,bitstring,bitstring):bitstring.
+fun H4(bitstring,bitstring,bitstring,bitstring):bitstring.
+fun H5(bitstring,bitstring,bitstring,bitstring,bitstring): bitstring.
+fun H7(bitstring,bitstring,bitstring,bitstring,bitstring,bitstring,bitstring): bitstring.
+fun H9(bitstring,bitstring,bitstring,bitstring,bitstring,bitstring,bitstring,bitstring,bitstring): bitstring.
+
+(*--XOR operation--*)
+fun XOR(bitstring, bitstring): bitstring.
+equation forall x: bitstring, y: bitstring; XOR(XOR(x, y), y) = x.
+
+(*--Concat operation--*)
+fun Concat(bitstring, bitstring): bitstring.
+
+(*--Check timestamp Fresh operation--*)
+fun isFresh(timestamp, bool): bool
+reduc forall T: timestamp; isFresh(T, true) = true
+otherwise forall T: timestamp; isFresh(T, false) = false.
+
+(*--The multiplication operation--*)
+fun Mul(skey, skey): skey.
+
+(*--The addition operation--*)
+fun Add(skey, skey): skey.
+
+(*--The point multiplication operation--*)
+fun ECCmul(skey, ECCpoint): ECCpoint.
+
+(*--The point addition operation--*)
+fun ECCadd(ECCpoint, ECCpoint): ECCpoint.
+
+(*--Mod operation--*)
+fun Mod(skey, skey): skey.
+
+(*--Type convertion--*)
+fun key_to_bitstring(key): bitstring [data,typeConverter].
+fun nonce_to_bitstring(nonce): bitstring [data,typeConverter].
+fun skey_to_bitstring(skey): bitstring [data,typeConverter].
+fun ECCpoint_to_bitstring(ECCpoint): bitstring [data,typeConverter].
+fun ECCpoint_to_key(ECCpoint): key [data,typeConverter].
+fun timestamp_to_bitstring(timestamp): bitstring [data,typeConverter].
+fun bitstring_to_key(bitstring): key [data,typeConverter].
+fun bitstring_to_skey(bitstring): skey [data,typeConverter].
+fun bitstring_to_ECCpoint(bitstring): ECCpoint [data,typeConverter].
+
+(*--Secrecy assumptions--*)
+not attacker(Kui).
+not attacker(KUgj).
+not attacker(KGS).
+not attacker(skR).
+
+(*--Authentication queries--*)
+event beginUGparam(host).
+event endUGparam(host).
+event beginGUparam(host).
+event endGUparam(host).
+event beginGSparam(host).
+event endGSparam(host).
+event beginSGparam(host).
+event endSGparam(host).
+
+query x: host; inj-event(endUGparam(x)) ==> inj-event(beginUGparam(x)).
+query x: host; inj-event(endGUparam(x)) ==> inj-event(beginGUparam(x)).
+query x: host; inj-event(endGSparam(x)) ==> inj-event(beginGSparam(x)).
+query x: host; inj-event(endSGparam(x)) ==> inj-event(beginSGparam(x)).
+
+(*--Queries--*)
+free secretA, secretB, secretC, secretD: bitstring [private].
+query attacker(secretA);
+      attacker(secretB);
+      attacker(secretC);
+      attacker(secretD).
+
+(*--Role of the User with identity IDi and private key Kui--*)
+
+let processUser(IDi: bitstring, IDGj: bitstring, IDSk: bitstring,LT:bitstring, Kui:skey, TPui:ECCpoint, TPGj:ECCpoint) =
+    in(c1,PK:ECCpoint);
+	event beginGUparam(GWN);
+	new rx: nonce;
+	let ux = bitstring_to_skey(H2(nonce_to_bitstring(rx),skey_to_bitstring(Kui))) in
+    let UX = ECCmul(ux,P) in
+	let HIDGj = H2(IDGj,ECCpoint_to_bitstring(TPGj)) in  
+	let R1 = ECCmul(ux,ECCadd(TPGj,ECCmul(bitstring_to_skey(HIDGj),PK))) in  
+	let hi = H5(IDi,IDSk,IDGj,ECCpoint_to_bitstring(R1),ECCpoint_to_bitstring(UX)) in
+	let thita = Mod(Add(Kui,Mul(ux,bitstring_to_skey(hi))),qVaule) in 
+	let CM = XOR(Concat(Concat(Concat(Concat(LT,IDi),IDSk),ECCpoint_to_bitstring(TPui)),skey_to_bitstring(thita)),H3(IDGj,ECCpoint_to_bitstring(R1),ECCpoint_to_bitstring(UX))) in
+	new T: timestamp;
+	let UV1 = H9(IDi,IDSk,IDGj,ECCpoint_to_bitstring(TPui),skey_to_bitstring(thita),LT,ECCpoint_to_bitstring(R1),ECCpoint_to_bitstring(UX),timestamp_to_bitstring(T)) in
+	 
+(*UO1*) out(c1, (UX, CM, UV1, T, isFresh(T, true)));  
+(*UR1*) in(c1, (gUY:ECCpoint, gGV4:bitstring));
+
+	let ke' = H7(IDi,IDSk,IDGj,ECCpoint_to_bitstring(R1),ECCpoint_to_bitstring(gUY),ECCpoint_to_bitstring(UX),ECCpoint_to_bitstring(ECCmul(ux,gUY))) in
+	(* OK *)
+	let GV'4 = H4(IDi,IDSk,ECCpoint_to_bitstring(gUY),ke') in
+	if GV'4 =gGV4 then    
+    event endUGparam(user);
+	out(c1, encrypt(secretA, bitstring_to_key(ke'))).
+
+(*--Role of the GWNj with private key KUgj, and the shard key Ksk between the GWNj and the sensor node--*)
+let processGWN(IDGj: bitstring, KUgj:skey, Ksk:bitstring) =
+(*GUR1*)in(c1, (gUX: ECCpoint, gCM: bitstring, gUV1: bitstring, gT:timestamp, checkT:bool));
+    in(c1,PK:ECCpoint);
+    event beginUGparam(user);
+    if checkT = true then  
+	let R'1 = ECCmul(KUgj,gUX) in 
+    let (gLT:bitstring,gIDi:bitstring,gIDSk:bitstring,gTPui:bitstring,gthita:bitstring) = XOR(gCM,H3(IDGj,ECCpoint_to_bitstring(R'1),ECCpoint_to_bitstring(gUX))) in
+    let HID'i= H3(gIDi,gTPui,gLT) in
+	let h'i = H5(gIDi,gIDSk,IDGj,ECCpoint_to_bitstring(R'1),ECCpoint_to_bitstring(gUX)) in
+    let UV'1 = H9(gIDi,gIDSk,IDGj,gTPui,gthita,gLT,ECCpoint_to_bitstring(R'1),ECCpoint_to_bitstring(gUX),timestamp_to_bitstring(gT)) in
+	let leftP= ECCmul(bitstring_to_skey(gthita),P) in
+	let rightP= ECCadd(ECCadd(ECCmul(bitstring_to_skey(h'i),gUX),bitstring_to_ECCpoint(gTPui)),ECCmul(bitstring_to_skey(HID'i),PK)) in
+    if UV'1=gUV1 && leftP = rightP then
+        new ry: nonce;
+		let uy = bitstring_to_skey(H2(nonce_to_bitstring(ry),skey_to_bitstring(KUgj))) in
+		let UY = ECCmul(uy,P) in
+		let ke=H7(gIDi,gIDSk,IDGj,ECCpoint_to_bitstring(R'1),ECCpoint_to_bitstring(UY),ECCpoint_to_bitstring(gUX),ECCpoint_to_bitstring(ECCmul(uy,gUX))) in
+
+		event beginSGparam(SN);
+	    let CT= XOR(Concat(ke,gIDi),H2(Ksk,NSk)) in
+	    let GV2 = H5(gIDi,gIDSk,ke,Ksk,NSk) in
+(*GSO1*)out(c2, (NSk,CT, GV2));
+(*GSR1*)in(c2, gSV3: bitstring);
+	    let SV'3 = H3(gIDSk,ke,NSk) in
+	    if SV'3 = gSV3 then
+		   let GV4 = H4(gIDi,gIDSk,ECCpoint_to_bitstring(UY),ke) in
+	      (* OK *)
+	      event endGSparam(GWN);
+          out(c2, encrypt(secretC, bitstring_to_key(Ksk)));
+
+   (*GUO1*)out(c1, (UY,GV4));
+	      (* OK *)
+	      event endGUparam(GWN);
+		  out(c1, encrypt(secretB, bitstring_to_key(ke))).
+	      	    
+(*--Role of the sensor node with identity IDSk and shared key Ksk--*)
+let processS(IDSk: bitstring, Ksk:bitstring) = 
+(*SR1*) in(c2,  (gNSk:bitstring, gCT: bitstring,gGV2:bitstring));
+        event beginGSparam(GWN);
+		if gNSk=NSk then
+	      let (gke:bitstring, gIDi:bitstring) = XOR(gCT,H2(Ksk,gNSk)) in
+	      let GV'2=  H5(gIDi,IDSk,gke,Ksk,gNSk) in
+	      if GV'2=gGV2 then
+		    let SV3 = H3(IDSk,gke,gNSk) in 
+    (*SO1*) out(c2, SV3); 
+            event endSGparam(SN);
+	        (* OK *)
+            out(c2, encrypt(secretD, bitstring_to_key(gke))).
+
+
+(*--Start process--*)
+process 
+    new Lt:bitstring;
+	new rui:skey;
+	new rGj:skey;
+	let PKR = ECCmul(skR, P) in out(c1,PKR);(*--the public key of RC--*)
+	let TPU=ECCmul(rui, P) in
+	let HIDi= H3(IDU,ECCpoint_to_bitstring(TPU),Lt) in
+	let SKU = Mod(Add(rui,Mul(skR,bitstring_to_skey(HIDi))),qVaule) in
+	let TPG=ECCmul(rGj, P) in
+	let HIDG= H2(IDG,ECCpoint_to_bitstring(TPG)) in
+	let SKG = Mod(Add(rGj,Mul(skR,bitstring_to_skey(HIDG))),qVaule) in
+	(
+          (*-- Launch an unbounded number of sessions of the user --*)
+          (!processUser(IDU,IDG,IDS,Lt,SKU,TPU,TPG)) | 
+          (*-- Launch an unbounded number of sessions of the GWN--*)
+          (!processGWN(IDG,SKG,KGS)) |
+          (*-- Launch an unbounded number of sessions of the sensor node--*)
+          (!processS(IDS,KGS)) 
+  )

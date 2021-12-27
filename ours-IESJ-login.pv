@@ -1,0 +1,165 @@
+(*--
+The Proverif code of the login phase the proposed scheme in "Privacy-Preserving Authentication Scheme with Revocability for Multi-WSN in Industrial IoT".
+
+Environmental requirements
+Programs can run under Windows, Linux, and Macs. 
+Install Proverif 1.96, download Address: http://proverif.inria.fr/
+No additional libraries are required. 
+ProVerif is a command-line tool which can be executed using the syntax:
+           ./proverif [options] hfilenamei
+
+Programs can also run online for ProVerif.
+Address: http://proverif16.paris.inria.fr/index.php
+Copy your code to the input box and press the execution key to verify the scheme.
+--*)
+
+(*--The public channel--*)
+free c: channel.
+
+(*--The basic type--*)
+type key.
+type skey.
+type host.
+type nonce.
+type timestamp.
+type ECCpoint.
+
+
+(*--The basic variables--*)
+const P:ECCpoint [data].  (*--a generator of the additive group of point--*)
+free user,RC:host. (*--two participants in the login of our scheme--*)
+(*free LKi:key[private]. --the shared key between the user and GWN--*)
+(*free sk:skey[private]. --the long term private key of GWN--*)
+free ID: bitstring[private]. (*--the identity of the user--*)
+free PW: bitstring[private]. (*--the password of the user--*)
+free b: bitstring[private].  (*--the random number in the smart card--*)
+free Rs: bitstring[private]. (*--the secret key of RC--*)
+free Ru: bitstring[private]. (*--the random number in the user information table--*)
+free skR:skey[private]. (*--the private key of RC--*)
+
+(*--Shared key encryption--*)
+fun encrypt(bitstring,key): bitstring.
+reduc forall x: bitstring, y: key; decrypt(encrypt(x,y),y) = x.
+
+(*--Hash operation--*) 
+fun H1(bitstring): bitstring.
+fun H2(bitstring,bitstring): bitstring.
+fun H3(bitstring,bitstring,bitstring):bitstring.
+fun H5(bitstring,bitstring,bitstring,bitstring,bitstring): bitstring.
+fun H8(bitstring,bitstring,bitstring,bitstring,bitstring,bitstring,bitstring,bitstring): bitstring.
+
+(*--XOR operation--*)
+fun XOR(bitstring, bitstring): bitstring.
+equation forall x: bitstring, y: bitstring; XOR(XOR(x, y), y) = x.
+
+(*--Concat operation--*)
+fun Concat(bitstring, bitstring): bitstring.
+
+(*--The point multiplication operation--*)
+fun ECCmul(skey, ECCpoint): ECCpoint.
+
+(*--Check timestamp Fresh operation--*)
+fun isFresh(timestamp, bool): bool
+reduc forall T: timestamp; isFresh(T, true) = true
+otherwise forall T: timestamp; isFresh(T, false) = false.
+
+(*--Type convertion--*)
+fun key_to_bitstring(key): bitstring [data,typeConverter].
+fun nonce_to_bitstring(nonce): bitstring [data,typeConverter].
+fun skey_to_bitstring(skey): bitstring [data,typeConverter].
+fun ECCpoint_to_bitstring(ECCpoint): bitstring [data,typeConverter].
+fun ECCpoint_to_key(ECCpoint): key [data,typeConverter].
+fun timestamp_to_bitstring(timestamp): bitstring [data,typeConverter].
+fun bitstring_to_key(bitstring): key [data,typeConverter].
+fun bitstring_to_skey(bitstring): skey [data,typeConverter].
+
+(*--Secrecy assumptions--*)
+not attacker(Rs).
+not attacker(Ru).
+not attacker(skR).
+
+(*--Authentication queries--*)
+event beginUparam(host).
+event endUparam(host).
+event beginRparam(host).
+event endRparam(host).
+
+query x: host; inj-event(endRparam(x)) ==> inj-event(beginRparam(x)).
+query x: host; inj-event(endUparam(x)) ==> inj-event(beginUparam(x)).
+
+(*--Queries--*)
+free secretA, secretB, secretC, secretD: bitstring [private].
+query attacker(secretA);
+      attacker(secretB);
+      attacker(secretC);
+      attacker(secretD).
+
+(*--Role of the User with identity IDi and shared key LKi--*)
+
+let processUser(IDi: bitstring, PWi: bitstring, bi: bitstring, Fi: bitstring, LV: bitstring, LKi:key, PK:ECCpoint) =
+        
+        let uLKi = XOR(Fi, H3(IDi,PWi,bi)) in
+        if uLKi = key_to_bitstring(LKi) then
+	      let LV' = H1(H2(uLKi, H3(IDi,PWi,bi))) in
+	      if LV'=LV then
+	      
+	      event beginRparam(RC);
+	      new rx: nonce;
+	      new T: timestamp;
+		  let x = bitstring_to_skey(H2(nonce_to_bitstring(rx),uLKi)) in
+	      let X = ECCmul(x,P) in
+	      let Mij = ECCmul(x,PK) in
+		  let CT1 = XOR(IDi,H1(ECCpoint_to_bitstring(Mij))) in
+		  let V1 = H5(IDi,ECCpoint_to_bitstring(X),uLKi,ECCpoint_to_bitstring(Mij),timestamp_to_bitstring(T)) in
+	 
+(*UO1*) out(c, (CT1, X, V1, T, isFresh(T, true)));  
+(*UR1*) in(c, (gY:ECCpoint,gCT2:bitstring, gV2:bitstring));
+
+	      let (gKui:bitstring,gTPui:bitstring,gLt:bitstring) = XOR(gCT2, H3(uLKi,ECCpoint_to_bitstring(Mij),ECCpoint_to_bitstring(ECCmul(x,gY)))) in
+	      (* OK *)
+	      let V'2 = H8(IDi,gKui,gTPui,gLt,ECCpoint_to_bitstring(X),ECCpoint_to_bitstring(gY),uLKi,ECCpoint_to_bitstring(Mij)) in
+	      if V'2 =gV2 then    
+        event endUparam(user);
+	    out(c, encrypt(secretA, ECCpoint_to_key(Mij)));
+		out(c, encrypt(secretB, ECCpoint_to_key(ECCmul(x,gY)))).
+
+(*--Role of RC with shared key LKi and private key sk--*)
+let processRC(s: bitstring, ui: bitstring, sk:skey) =
+       
+(*GUR1*)in(c, (gCT1: bitstring, gX: ECCpoint, gV1: bitstring, gT:timestamp, checkT:bool));      
+        event beginUparam(user);
+        if checkT = true then
+		let M'ij = ECCmul(sk,gX) in
+        let (gIDi:bitstring) = XOR(gCT1,H1(ECCpoint_to_bitstring(M'ij))) in
+		let rLKi = H3(gIDi,s,ui) in
+		let V'1 = H5(gIDi,ECCpoint_to_bitstring(gX),rLKi,ECCpoint_to_bitstring(M'ij),timestamp_to_bitstring(gT)) in
+        if V'1=gV1 then
+          new ry:nonce;		  
+		  new TPui:bitstring;
+		  new Kui:bitstring;
+		  new Lt:bitstring;
+		  let y = bitstring_to_skey(H2(nonce_to_bitstring(ry),skey_to_bitstring(sk))) in
+		  let Y = ECCmul(y,P) in
+		  let CT2 = XOR(Concat(Concat(Kui,TPui),Lt),H3(rLKi,ECCpoint_to_bitstring(M'ij),ECCpoint_to_bitstring(ECCmul(y,gX)))) in
+		  let V2 = H8(gIDi,Kui,TPui,Lt,ECCpoint_to_bitstring(gX),ECCpoint_to_bitstring(Y),rLKi,ECCpoint_to_bitstring(M'ij)) in
+  (*GUO1*)out(c, (Y,CT2,V2));
+          event endRparam(RC);
+	      (* OK *)
+	     
+	      out(c, encrypt(secretC, ECCpoint_to_key(M'ij)));
+    	  out(c, encrypt(secretD, ECCpoint_to_key(ECCmul(y,gX)))).
+
+
+(*--Start process--*)
+process
+	new PKR: ECCpoint; (*--the public key of RC--*)
+	let LKur = H3(ID,Rs,Ru) in  (*--the shared key between the user and RC--*)
+	let F = XOR(LKur, H3(ID,PW,b)) in
+	let V = H1(H2(LKur, H3(ID,PW,b))) in
+	let PKR = ECCmul(skR, P) in out(c,PKR);
+	(
+          (*-- Launch an unbounded number of sessions of the user --*)
+          (!processUser(ID,PW,b,F,V,bitstring_to_key(LKur),PKR)) | 
+          (*-- Launch an unbounded number of sessions of the RC--*)
+          (!processRC(Rs,Ru,skR))
+  )
